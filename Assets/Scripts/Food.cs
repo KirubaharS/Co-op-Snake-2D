@@ -9,7 +9,7 @@ public enum FoodType
 public class Food : MonoBehaviour
 {
     public FoodType type;
-    public float lifetime = 10f; // Food will be destroyed after 10 seconds if not eaten
+    [SerializeField] private float lifetime = 10f; // Food will be destroyed after 10 seconds if not eaten
 
     void Start()
     {

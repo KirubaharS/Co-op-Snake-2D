@@ -20,6 +20,8 @@ public class SnakePlayerTwo : Snake
 
     protected override void HandleDeath()
     {
+        Debug.Log("Handling death for snake: " + gameObject.name);
+        //AudioManager.instance.PlayGameOverSound();
         HandleGameOver();
     }
 }

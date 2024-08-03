@@ -6,8 +6,9 @@ using UnityEngine.SceneManagement;
 
 public class GameOverManager : MonoBehaviour
 {
-    public GameObject gameOverObject;
-    public TextMeshProUGUI gameOverText;
+    [SerializeField] private GameObject gameOverObject;
+    [SerializeField] private TextMeshProUGUI gameOverText;
+    [SerializeField] private string menuSceneName = "MainMenu";
 
     void Start()
     {
@@ -32,13 +33,13 @@ public class GameOverManager : MonoBehaviour
     {
         Time.timeScale = 1f; // Resume the game
         gameOverObject.SetActive(false);
-        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 
     public void ReturnToMenu()
     {
         Time.timeScale = 1f; // Resume the game
-        SceneManager.LoadScene("MainMenu"); // Make sure you have a scene named "MenuScene"
+        SceneManager.LoadScene(menuSceneName); // Make sure you have a scene named "MenuScene"
     }
 
     public void Quit()

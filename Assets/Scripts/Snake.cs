@@ -8,6 +8,22 @@ using TMPro;
 
 public abstract class Snake : MonoBehaviour
 {
+    // Serialized fields for messages
+    [SerializeField] private string singlePlayerGameOverMessage = "";
+    private string player1DeathMessage = "Player 1 Died. Player 2 Wins!";
+    private string player2DeathMessage = "Player 2 Died. Player 1 Wins!";
+
+    private AudioManager audioManager;
+
+    // Reference to the GameOverManager
+    [SerializeField] private GameOverManager gameOverManager;
+
+    // Reference to the other snake 
+    [SerializeField] private Snake otherSnake;
+
+    // Scene name for single-player mode
+    [SerializeField] private string singlePlayerSceneName = "Singleplayer";
+
     protected Vector2 currentDirection = Vector2.right;
     protected Vector2 nextDirection;
     private const float BaseMoveDelay = 0.1f;
@@ -28,6 +44,9 @@ public abstract class Snake : MonoBehaviour
     private float scoreBoostDuration = 10f;
     private float powerUpCooldown = 3f;
 
+    [SerializeField] private int massGainerScore = 1;
+    [SerializeField] private int massBurnerScore = -2;
+
     // Trackers for power-up cooldowns
     private float shieldCooldownTimer = 0f;
     private float scoreBoostCooldownTimer = 0f;
@@ -38,15 +57,15 @@ public abstract class Snake : MonoBehaviour
     private float moveDelay = BaseMoveDelay;
 
     // Power-up prefabs
-    public GameObject shieldPrefab;
-    public GameObject scoreBoostPrefab;
-    public GameObject speedUpPrefab; 
+    [SerializeField] private GameObject shieldPrefab;
+    [SerializeField] private GameObject scoreBoostPrefab;
+    [SerializeField] private GameObject speedUpPrefab;
 
     // Border objects to define boundaries
-    public GameObject topBorder;
-    public GameObject bottomBorder;
-    public GameObject leftBorder;
-    public GameObject rightBorder;
+    [SerializeField] private GameObject topBorder;
+    [SerializeField] private GameObject bottomBorder;
+    [SerializeField] private GameObject leftBorder;
+    [SerializeField] private GameObject rightBorder;
 
     // Border positions
     private float topBorderY;
@@ -56,9 +75,13 @@ public abstract class Snake : MonoBehaviour
 
     // Score
     private int score = 0;
-    public TextMeshProUGUI scoreText;
-    public GameObject scoreManagerObject;
+    [SerializeField] private TextMeshProUGUI scoreText;
+    [SerializeField] private GameObject scoreManagerObject;
     private ScoreManager scoreManager;
+
+    // Serialized fields for power-up multipliers
+    [SerializeField] private float scoreBoostMultiplier = 2f; // Multiplier for score boost
+    [SerializeField] private float defaultScoreMultiplier = 1f; // Default multiplier
 
     // Player number
     public int playerNumber;
@@ -72,6 +95,8 @@ public abstract class Snake : MonoBehaviour
         leftBorderX = leftBorder.transform.position.x;
         rightBorderX = rightBorder.transform.position.x;
         scoreManager = scoreManagerObject.GetComponent<ScoreManager>();
+
+        Debug.Log("Snake initialized: " + gameObject.tag);
     }
 
     void Update()
@@ -164,22 +189,23 @@ public abstract class Snake : MonoBehaviour
 
     protected bool CheckOtherSnakeCollision(Vector2 headPosition)
     {
-        string otherSnakeTag = gameObject.tag == "SnakePlayerOne" ? "SnakePlayerTwo" : "SnakePlayerOne";
-        GameObject otherSnake = GameObject.FindGameObjectWithTag(otherSnakeTag);
         if (otherSnake != null)
         {
-            Snake otherSnakeScript = otherSnake.GetComponent<Snake>();
+            // Check collision with the other snake’s head
             if (headPosition == (Vector2)otherSnake.transform.position)
             {
-                otherSnakeScript.HandleDeath();
+                // Handle the death of the current snake (this one)
+                HandleDeath();
                 return true;
             }
 
-            foreach (Transform tailPart in otherSnakeScript.tail)
+            // Check collision with the other snake’s tail
+            foreach (Transform tailPart in otherSnake.tail)
             {
                 if (headPosition == (Vector2)tailPart.position)
                 {
-                    otherSnakeScript.HandleDeath();
+                    // Handle the death of the current snake (this one)
+                    HandleDeath();
                     return true;
                 }
             }
@@ -221,45 +247,70 @@ public abstract class Snake : MonoBehaviour
 
     protected void HandleGameOver()
     {
-        // In single-player, just display the game-over screen without any message
-        if (SceneManager.GetActiveScene().name == "Singleplayer")
+        if (SceneManager.GetActiveScene().name == singlePlayerSceneName)
         {
-            GameObject.FindObjectOfType<GameOverManager>().ShowGameOverScreen("");
+            gameOverManager.ShowGameOverScreen(singlePlayerGameOverMessage);
         }
         else
         {
-            // In multiplayer, show appropriate win/loss messages
-            string message = gameObject.tag == "SnakePlayerOne" ? "Player 1 Died. Player 2 Wins!" : "Player 2 Died. Player 1 Wins!";
-            GameObject.FindObjectOfType<GameOverManager>().ShowGameOverScreen(message);
+            string message = "";
+
+            if (otherSnake == null)
+            {
+                message = singlePlayerGameOverMessage;
+            }
+            else
+            {
+                if (playerNumber == 1)
+                {
+                    message = player1DeathMessage; // Player 1 died
+                }
+                else if (playerNumber == 2)
+                {
+                    message = player2DeathMessage; // Player 2 died
+                }
+                else
+                {
+                    Debug.LogError("Unknown player number: " + playerNumber);
+                }
+            }
+
+            Debug.Log("Game Over! Message: " + message + ", Current Snake: " + gameObject.name + ", Other Snake: " + (otherSnake ? otherSnake.name : "None"));
+            gameOverManager.ShowGameOverScreen(message);
         }
 
         Destroy(gameObject);
+        AudioManager.instance.PlaySFX(AudioManager.instance.gameOverSound);
     }
 
     void OnTriggerEnter2D(Collider2D coll)
     {
-        if (coll.CompareTag("Food"))
+        Food food = coll.GetComponent<Food>();
+        if (food != null)
         {
-            Food food = coll.GetComponent<Food>();
-            if (food != null)
+            if (food.type == FoodType.MassGainer)
             {
-                if (food.type == FoodType.MassGainer)
-                {
-                    ate = true;
-                    UpdateScore(1);
-                }
-                else if (food.type == FoodType.MassBurner)
-                {
-                    ShrinkTail();
-                    UpdateScore(-2);
-                }
+                ate = true;
+                UpdateScore(massGainerScore);
+                AudioManager.instance.PlaySFX(AudioManager.instance.eatSound);
+            }
+            else if (food.type == FoodType.MassBurner)
+            {
+                ShrinkTail();
+                UpdateScore(massBurnerScore);
+                AudioManager.instance.PlaySFX(AudioManager.instance.eatSound);
+            }
+            Destroy(coll.gameObject);
+        }
+        else
+        {
+            PowerUp powerUp = coll.GetComponent<PowerUp>();
+            if (powerUp != null)
+            {
+                ActivatePowerUp(coll.gameObject);
+                AudioManager.instance.PlaySFX(AudioManager.instance.powerUpSound);
                 Destroy(coll.gameObject);
             }
-        }
-        else if (coll.CompareTag("PowerUp"))
-        {
-            ActivatePowerUp(coll.gameObject);
-            Destroy(coll.gameObject);
         }
     }
 
@@ -304,7 +355,7 @@ public abstract class Snake : MonoBehaviour
         if (scoreBoostCooldownTimer <= 0)
         {
             isScoreBoostActive = true;
-            scoreMultiplier = 2f;
+            scoreMultiplier = scoreBoostMultiplier;
             scoreBoostCooldownTimer = scoreBoostDuration + powerUpCooldown;
             StartCoroutine(DeactivateScoreBoostAfterDelay());
             Debug.Log("Score boost activated!");
@@ -315,7 +366,7 @@ public abstract class Snake : MonoBehaviour
     {
         yield return new WaitForSeconds(scoreBoostDuration);
         isScoreBoostActive = false;
-        scoreMultiplier = 1f;
+        scoreMultiplier = defaultScoreMultiplier;
         Debug.Log("Score boost deactivated.");
     }
 
@@ -353,6 +404,11 @@ public abstract class Snake : MonoBehaviour
         return tail.Count;
     }
 
+    public List<Transform> GetTail()
+    {
+        return tail;
+    }
+
     protected void UpdatePowerUpCooldowns()
     {
         if (shieldCooldownTimer > 0) shieldCooldownTimer -= Time.deltaTime;
@@ -367,15 +423,15 @@ public abstract class Snake : MonoBehaviour
 
     private void UpdateScore(int points)
     {
-        if (isScoreBoostActive)
-        {
-            points *= 2;
-        }
+        // Apply the score multiplier based on whether score boost is active
+        float effectiveMultiplier = isScoreBoostActive ? scoreMultiplier : defaultScoreMultiplier;
+        points = (int)(points * effectiveMultiplier);
 
-        score += (int)(points * scoreMultiplier);
-
+        // Update the score while ensuring it doesn't go below zero
+        score = Mathf.Max(score + points, 0);
         scoreManager.UpdateScore(playerNumber, score);
 
+        // Update the score text display
         UpdateScoreText();
     }
 

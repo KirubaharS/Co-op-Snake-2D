@@ -5,8 +5,8 @@ using UnityEngine;
 
 public class ScoreManager : MonoBehaviour
 {
-    public TextMeshProUGUI scoreTextA;
-    public TextMeshProUGUI scoreTextB;
+    [SerializeField] private TextMeshProUGUI scoreTextA;
+    [SerializeField] private TextMeshProUGUI scoreTextB;
 
     private int scoreA = 0;
     private int scoreB = 0;

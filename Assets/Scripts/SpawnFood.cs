@@ -4,17 +4,22 @@ using UnityEngine;
 
 public class SpawnFood : MonoBehaviour
 {
-    public GameObject massGainerPrefab;
-    public GameObject massBurnerPrefab;
-
-    public Transform TopBorder;
-    public Transform BottomBorder;
-    public Transform LeftBorder;
-    public Transform RightBorder;
+    [SerializeField] private GameObject massGainerPrefab;
+    [SerializeField] private GameObject massBurnerPrefab;
+    [SerializeField] private Transform TopBorder;
+    [SerializeField] private Transform BottomBorder;
+    [SerializeField] private Transform LeftBorder;
+    [SerializeField] private Transform RightBorder;
 
     private float spawnIntervalMin = 5f;
     private float spawnIntervalMax = 10f;
     private float foodLifetime = 10f;
+
+    [SerializeField] private int tailLengthThreshold = 5;
+    [SerializeField] private float massBurnerProbabilityAboveThreshold = 0.3f;
+    [SerializeField] private float massBurnerProbabilityBelowThreshold = 0.1f;
+
+    [SerializeField] private List<Snake> snakes;
 
     void Start()
     {
@@ -27,24 +32,63 @@ public class SpawnFood : MonoBehaviour
         {
             yield return new WaitForSeconds(Random.Range(spawnIntervalMin, spawnIntervalMax));
 
-            bool spawnMassBurner = ShouldSpawnMassBurner();
-            GameObject selectedFood = spawnMassBurner ? massBurnerPrefab : massGainerPrefab;
+            GameObject selectedFood = ChooseFoodPrefabBasedOnProbability();
+            Vector2 spawnPosition;
 
-            float x = Random.Range(LeftBorder.position.x, RightBorder.position.x);
-            float y = Random.Range(BottomBorder.position.y, TopBorder.position.y);
+            do
+            {
+                float x = Random.Range(LeftBorder.position.x, RightBorder.position.x);
+                float y = Random.Range(BottomBorder.position.y, TopBorder.position.y);
+                spawnPosition = new Vector2(x, y);
+            } while (IsPositionOnSnakes(spawnPosition));
 
-            GameObject foodInstance = Instantiate(selectedFood, new Vector2(x, y), Quaternion.identity);
-            Destroy(foodInstance, foodLifetime); // Destroy the food after its lifetime
+            GameObject foodInstance = Instantiate(selectedFood, spawnPosition, Quaternion.identity);
+            Destroy(foodInstance, foodLifetime);
         }
     }
 
-    private bool ShouldSpawnMassBurner()
+    private GameObject ChooseFoodPrefabBasedOnProbability()
     {
-        // Add logic to determine if Mass Burner should be spawned based on snake length
-        // For example, if the snake's length is too short, return false
-        // Here, we'll assume a basic condition where mass burner is not spawned if snake length is less than 5
-        Snake snake = FindObjectOfType<Snake>();
-        return snake != null && snake.GetTailLength() > 5;
+        if (snakes == null || snakes.Count == 0)
+        {
+            Debug.LogWarning("Snake references are not assigned, defaulting to MassGainer.");
+            return massGainerPrefab;
+        }
+
+        // Calculate total tail length of all snakes
+        int totalTailLength = 0;
+        foreach (var snake in snakes)
+        {
+            totalTailLength += snake.GetTailLength();
+        }
+
+        bool shouldSpawnMassBurner = totalTailLength > tailLengthThreshold
+            ? Random.value < massBurnerProbabilityAboveThreshold
+            : Random.value < massBurnerProbabilityBelowThreshold;
+
+        Debug.Log($"Total Tail Length: {totalTailLength}, Should Spawn MassBurner: {shouldSpawnMassBurner}");
+
+        return shouldSpawnMassBurner ? massBurnerPrefab : massGainerPrefab;
+    }
+
+    private bool IsPositionOnSnakes(Vector2 position)
+    {
+        foreach (var snake in snakes)
+        {
+            if ((Vector2)snake.transform.position == position)
+            {
+                return true;
+            }
+
+            foreach (Transform tailPart in snake.GetTail())
+            {
+                if ((Vector2)tailPart.position == position)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }
-
